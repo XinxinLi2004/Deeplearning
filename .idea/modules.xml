@@ -3,6 +3,8 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/Deeplearning.iml" filepath="$PROJECT_DIR$/.idea/Deeplearning.iml" />
+      <module fileurl="file://$USER_HOME$/AppData/Local/JetBrains/PyCharm2025.2/demo/PyCharmLearningProject/.idea/PyCharmLearningProject.iml" filepath="$USER_HOME$/AppData/Local/JetBrains/PyCharm2025.2/demo/PyCharmLearningProject/.idea/PyCharmLearningProject.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../XinxinLi.github.io/.idea/XinxinLi.github.io.iml" filepath="$PROJECT_DIR$/../XinxinLi.github.io/.idea/XinxinLi.github.io.iml" />
     </modules>
   </component>
 </project>

@@ -3,5 +3,6 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/AI_learning" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../XinxinLi.github.io" vcs="Git" />
   </component>
 </project>

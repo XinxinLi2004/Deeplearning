@@ -2,6 +2,8 @@
   <dictionary name="project">
     <words>
       <w>cifar</w>
+      <w>nbarray</w>
+      <w>totensor</w>
     </words>
   </dictionary>
 </component>
