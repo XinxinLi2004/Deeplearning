@@ -4,6 +4,8 @@
 
 import numpy as np
 from pycparser import ply
+from sympy.codegen.cnodes import sizeof
+from torch import nn
 
 
 ###均方误差：E=1/2∑(yk-tk)**2(y为预测值，t为监督值（即训练数据的正确值）)
@@ -57,7 +59,7 @@ def cross_entropy_error(t_true, y_pred):
         t_true = t_true.reshape(1, t_true.size)
         ####if函数防止当输入一个数据时，batchsize和数据数量不匹配
     batch_size = t_true.shape[0]
-    return -np.sum( np.log(y_pred[np.arange(batch_size),t] + delta))/batch_size
+    return -np.sum( np.log(y_pred[np.arange(batch_size),t] + delta))/batch_size####y[0,1]==y[0][1]
 ###改进后，可以处理t不是onehot形式的数据
 
 ###引入损失函数的目的是为了方便寻找参数，因为参数的求需要计算参数的导数（当然，因为这里参数众多，所以针对单独的一个参数，我们这里球的应该是梯度），找到最小值的地方。
@@ -134,19 +136,207 @@ gradient_descent(function_2, init_x, lr=0.1, step_num=100)
 ###为什么不是return f(x)呢？我们不是要的他的最小值吗？这里返回的是此时x的取值吧，当然放到深度学习中就是我们要的参数。
 ###学习率的取值非常重要，要选择合适的学习率，学习率这样的参数也成为超参数，和权重和偏置不同，后两者是学习得到的，而前者是指定的
 
+###神经网络的梯度
+###神经网络梯度的矩阵形式应该和参数W的形式一致，是损失函数L对某个参数的偏导数的矩阵
+###simpleNet
+import sys,os
+sys.path.append(os.pardir)
+import numpy as np
+from DeepLearning_from_Scratch.code.common.functions import softmax, sigmoid,cross_entropy_error
+from DeepLearning_from_Scratch.code.common.gradient import numerical_gradient
+
+class simpleNst:
+    def __init__(self):
+        self.W = np.random.randn(2,3)####利用高斯分布初始化一个2*3的矩阵作为初始W
+
+    def predict(self,x):
+        return np.dot(x,self.W)
+
+    def loss(self, x, t):
+        z = self.predict(x)
+        y = softmax(z)
+        loss = cross_entropy_error(y,t)
+        return loss
+
+y = np.array([[1,2,3]])
+
+net = simpleNst()
+print(net.W)
+x = np.array([0.6,0.9])
+p = net.predict(x)
+print(p)
+np.argmax(p)
+t = np.array([0,0,1])
+net.loss(x,t)
+
+def f(W):
+    return net.loss(x,t)
+
+dW = numerical_gradient(f, net.W)
+print(dW)
+
+###lambda define simple function
+f = lambda w: net.loss(x,t)
+dW = numerical_gradient(f, net.W)
+
+###实现手写数字识别的神经网络
+###两层神经网络，一层隐藏层
+
+import sys,os
+sys.path.append(os.pardir)
+from DeepLearning_from_Scratch.code.common.functions import *
+from DeepLearning_from_Scratch.code.common.gradient import numerical_gradient
+
+class TwolayerNet:
+    def __init__(self, input_size, hidden_size, output_size, weight_init_std = 0.01):
+        ###初始化权重
+        self.params = {}### 字典
+        self.params['W1'] = weight_init_std * np.random.randn(input_size, hidden_size)
+        self.params['b1'] = np.zeros(hidden_size)
+        self.params['W2'] = weight_init_std * np.random.randn(hidden_size, output_size)
+        self.params['b2'] = np.zeros(output_size)
+
+    def predict(self, x):
+        W1, W2 = self.params['W1'], self.params['W2']
+        b1, b2 = self.params['b1'], self.params['b2']
+        a1 = np.dot(x, W1) + b1
+        z1 = sigmoid(a1)
+        a2 = np.dot(z1, W2) + b2
+        y = softmax(a2)
+
+        return y
+
+    def loss(self, x, t):
+        y = self.predict(x)
+        return cross_entropy_error(y, t)
+
+    def accuracy(self, x, t):
+        y = self.predict(x)
+        y = np.argmax(y,axis=1)
+        t = np.argmax(t,axis=1)
+
+        accuracy = np.sum(y == t) / float(x.shape[0])
+        return accuracy
+
+    def gradient(self, x, t):
+        loss_W = lambda W: self.loss(x, t)
+
+        grads = {}
+        grads['W1'] = numerical_gradient(loss_W, self.params['W1'])
+        grads['b1'] = numerical_gradient(loss_W, self.params['b1'])
+        grads['W2'] = numerical_gradient(loss_W, self.params['W2'])
+        grads['b2'] = numerical_gradient(loss_W, self.params['b2'])
+
+        return grads
+
+net = TwolayerNet(input_size=784, hidden_size=100, output_size=10)
+print(net)
+net.params['W1'].shape
+net.params['b1'].shape
+net.params['W2'].shape
+
+x = np.random.randn(100, 784)
+y = net.predict(x)
+
+t = np.random.randn(100, 10)
+
+grad = net.gradient(x, t)
 
 
+####mini-batch
+import numpy as np
+from DeepLearning_from_Scratch.code.dataset.mnist import load_mnist
+from DeepLearning_from_Scratch.code.ch04.two_layer_net import TwoLayerNet
+from matplotlib import pyplot as plt
+
+(x_train, t_train), (x_test, t_test) = load_mnist(normalize=True, one_hot_label=True)
+train_lost_list = []
+###chao can shu rengongshhezhi de canshu
+
+iters_num = 10000####训练次数
+train_size = x_train.shape[0]
+batch_size = 100
+learning_rate = 0.1
+
+network = TwoLayerNet(784, 50, 10)
+
+for i in range(iters_num):
+    ###mini-batch
+    batch_mask = np.random.choice(train_size, batch_size)
+    x_batch = x_train[batch_mask]
+    t_batch = t_train[batch_mask]
+
+    ###计算梯度
+    grad = network.numerical_gradient(x_batch, t_batch)
+    ### grad = network.gradient() fast speed
+    ###更新参数
+    for key in ('W1', 'b1', 'W2', 'b2'):
+        network.params[key] -= learning_rate * grad[key]
+    print('time:',i)
+    ### 记录学习过程
+    loss = network.loss(x_batch, t_batch)
+    train_lost_list.append(loss)
+
+X_axis = range(iters_num)
+plt.plot(X_axis, train_lost_list)
+plt.show()
+
+###Epoch: 每个训练数据都被使用一次称为一次Epoch，如10000个数据，每次使用100个。那么100就是一个Epoch
+
+####mini-batch
+import numpy as np
+from DeepLearning_from_Scratch.code.dataset.mnist import load_mnist
+from DeepLearning_from_Scratch.code.ch04.two_layer_net import TwoLayerNet
+from matplotlib import pyplot as plt
+
+(x_train, t_train), (x_test, t_test) = load_mnist(normalize=True, one_hot_label=True)
+
+###chao can shu rengongshhezhi de canshu
+
+iters_num = 10000  ####训练次数
+train_size = x_train.shape[0]
+batch_size = 100
+learning_rate = 0.1
+
+train_lost_list = []
+train_acc_list = []
+test_acc_list = []
+iter_per_epoch = max(train_size / batch_size, 1)
+
+network = TwoLayerNet(784, 50, 10)
+
+for i in range(iters_num):
+    ###mini-batch
+    batch_mask = np.random.choice(train_size, batch_size)
+    x_batch = x_train[batch_mask]
+    t_batch = t_train[batch_mask]
+
+    ###计算梯度
+    grad = network.gradient(x_batch, t_batch)###使用高速版代码，跑的太慢了。提速达千倍
+    ### grad = network.gradient() fast speed
+    ###更新参数
+    for key in ('W1', 'b1', 'W2', 'b2'):
+        network.params[key] -= learning_rate * grad[key]
+
+    ### 记录学习过程
+    print("time:",i)
+    loss = network.loss(x_batch, t_batch)
+    train_lost_list.append(loss)
+    if i % iter_per_epoch == 0:
+        train_acc = network.accuracy(x_train, t_train)
+        test_acc = network.accuracy(x_test, t_test)
+        train_acc_list.append(train_acc)
+        test_acc_list.append(test_acc)
+        print("train accuracy:", train_acc, "test accuracy:", test_acc)
 
 
-
-
-
-
-
-
-
-
-
+X_axis = range(iters_num)
+plt.plot(X_axis, train_lost_list)
+plt.show()
+X_axis = range(np.array(train_acc_list).size)
+plt.plot(X_axis, test_acc_list, linestyle='--')
+plt.plot(X_axis, train_acc_list)
+plt.show()
 
 
 
