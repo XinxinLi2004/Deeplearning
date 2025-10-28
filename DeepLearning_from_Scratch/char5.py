@@ -3,7 +3,9 @@
 ###计算图的局部运算与其他部分互不干扰，是非常重要的特征和实现的基础，而链式法则计算导数是数学的基本原理。
 ###反向传播的计算就是下游传入的参数×节点对各个上游分支的导数
 import numpy as np
+import pandas
 
+from DeepLearning_from_Scratch.Fish_book import iters_num
 from DeepLearning_from_Scratch.code.common.functions import cross_entropy_error, softmax
 
 
@@ -182,6 +184,138 @@ class SoftmaxWithLoss:
         dx = (self.y - self.t) / batch_size
         ###利用局部运算简化计算。
         return dx
+
+###TwoLayerNet的实现
+import sys,os
+sys.path.append(os.path.abspath('../..'))
+import numpy as np
+from DeepLearning_from_Scratch.code.common.layers import *
+from DeepLearning_from_Scratch.code.common.gradient import numerical_gradient
+from collections import OrderedDict
+
+class TwoLayerNet:
+    def __init__(self,input_size,hidden_size,output_size,weight_init_std=0.01):
+        self.params = {}###初始化权重
+        self.params['W1'] = weight_init_std * np.random.randn(input_size,hidden_size)
+        self.params['b1'] = np.zeros(hidden_size)
+        self.params['W2'] = weight_init_std * np.random.randn(hidden_size,output_size)
+        self.params['b2'] = np.zeros(output_size)
+
+        ###生成层
+        self.layers = OrderedDict()
+        self.layers['Affine1'] = Affine(self.params['W1'],self.params['b1'])
+        self.layers['Relu1'] = Relu()
+        self.layers['Affine2'] = Affine(self.params['W2'],self.params['b2'])
+        self.last_layer = SoftmaxWithLoss()
+
+    def predict(self,x):
+        for layer in self.layers.values():
+            x = layer.forward(x)
+
+        return x
+
+    def loss(self,x,t):
+        y = self.predict(x)
+        return self.last_layer.forward(y,t)
+
+    def accuracy(self,x,t):
+        y = self.predict(x)
+        y = np.argmax(y, axis=1)
+        if t.ndim != 1 : t = np.argmax(t, axis=1)
+        accuracy = np.sum(y == t) / float(x.shape[0])
+        return accuracy
+
+    def numerical_gradient(self,x,t):
+        loss_W = lambda W : self.loss(x,t)
+
+        grads = {}
+        grads['W1'] = numerical_gradient(loss_W,self.params['W1'])
+        grads['b1'] = numerical_gradient(loss_W,self.params['b1'])
+        grads['W2'] = numerical_gradient(loss_W,self.params['W2'])
+        grads['b2'] = numerical_gradient(loss_W,self.params['b2'])
+        return grads
+
+    def gradient(self,x,t):
+        ###forward
+        self.loss(x,t)
+        ###backward
+        dout = 1
+        dout = self.last_layer.backward(dout)
+        layers = list(self.layers.values())
+        layers.reverse()
+        for layer in layers:
+            dout = layer.backward(dout)###dout不断迭代，生成每层的dout
+
+        grads = {}
+        grads["W1"] = self.layers['Affine1'].dW
+        grads["b1"] = self.layers['Affine1'].db
+        grads["W2"] = self.layers['Affine2'].dW
+        grads["b2"] = self.layers['Affine2'].db
+        return grads
+
+
+#####数值微分计算比较慢，耗时间，但是实现起来是比较简单，不易出错的，而反向传播是基于数学推到，计算快，但是比较复杂容易出错，因此往往会通过梯度确认操作来保证正确
+#####梯度确认就是比较两种方法算出来的结果是否一致。
+import sys, os
+sys.path.append(os.pardir)  # 为了导入父目录的文件而进行的设定
+import numpy as np
+from DeepLearning_from_Scratch.code.dataset.mnist import load_mnist
+from DeepLearning_from_Scratch.code.ch05.two_layer_net import TwoLayerNet
+
+# 读入数据
+(x_train, t_train), (x_test, t_test) = load_mnist(normalize=True, one_hot_label=True)
+
+network = TwoLayerNet(input_size=784, hidden_size=50, output_size=10)
+
+x_batch = x_train[:3]
+t_batch = t_train[:3]
+
+grad_numerical = network.numerical_gradient(x_batch, t_batch)
+grad_backprop = network.gradient(x_batch, t_batch)
+
+for key in grad_numerical.keys():
+    diff = np.average( np.abs(grad_backprop[key] - grad_numerical[key]) )
+    print(key + ":" + str(diff))
+
+###利用误差反向传播进行学习。
+import sys, os
+sys.path.append(os.pardir)  # 为了导入父目录的文件而进行的设定
+import numpy as np
+from DeepLearning_from_Scratch.code.dataset.mnist import load_mnist
+from DeepLearning_from_Scratch.code.ch05.two_layer_net import TwoLayerNet
+
+(x_train, t_train), (x_test, t_test) = load_mnist(normalize=True, one_hot_label=True)
+network = TwoLayerNet(input_size=784, hidden_size=50, output_size=10)
+
+iters_num = 10000
+train_size = x_train.shape[0]
+batch_size = 100
+learning_rate = 0.1
+train_loss_list = []
+train_acc_list = []
+test_acc_list = []
+iter_per_epoch = max(train_size / batch_size,1)
+
+for i in range(iters_num):
+    batch_mask = np.random.choice(train_size, batch_size, replace=False)
+    x_batch = x_train[batch_mask]
+    t_batch = t_train[batch_mask]
+    grad = network.gradient(x_batch, t_batch)
+    ###update
+    # network.params['W1'] -= learning_rate * grad['W1']
+    # network.params['b1'] -= learning_rate * grad['b1']
+    # network.params['W2'] -= learning_rate * grad['W2']
+    # network.params['b2'] -= learning_rate * grad['b2']
+    for key in ['W1', 'b1', 'W2', 'b2']:
+        network.params[key] -= learning_rate * grad[key]
+    train_loss_list.append(network.loss(x_train, t_train))
+    print(i)
+    if i % iter_per_epoch == 0:
+        train_acc_list.append(network.accuracy(x_train, t_train))
+        test_acc_list.append(network.accuracy(x_test, t_test))
+
+
+
 
 
 

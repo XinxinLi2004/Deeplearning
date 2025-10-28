@@ -1,7 +1,7 @@
 # coding: utf-8
 import numpy as np
-from common.functions import *
-from common.util import im2col, col2im
+from DeepLearning_from_Scratch.code.common.functions import *
+from DeepLearning_from_Scratch.code.common.util import im2col, col2im
 
 
 class Relu:
@@ -52,7 +52,7 @@ class Affine:
         # 对应张量
         self.original_x_shape = x.shape
         x = x.reshape(x.shape[0], -1)
-        self.x = x
+        self.x = x####必须有，因为需要存储x作为反向传播时使用的参数
 
         out = np.dot(self.x, self.W) + self.b
 
