@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from dataset.mnist import load_mnist
 from simple_convnet import SimpleConvNet
-from common.trainer import Trainer
+from DeepLearning_from_Scratch.code.common.trainer import Trainer
 
 # 读入数据
 (x_train, t_train), (x_test, t_test) = load_mnist(flatten=False)
